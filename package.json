@@ -1,0 +1,59 @@
+{
+  "name": "@tronhooks/sdk",
+  "version": "0.1.1",
+  "description": "TRON deposit webhooks (USDT/TRX) \u2014 watch addresses, receive signed webhooks, verify in one line. Client for tronhooks.com.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LuganBI/tronhooks-sdk.git"
+  },
+  "homepage": "https://tronhooks.com/docs/",
+  "keywords": [
+    "tron",
+    "trc20",
+    "usdt",
+    "webhook",
+    "deposit",
+    "blockchain",
+    "payments",
+    "tron webhook",
+    "tron webhook api",
+    "usdt deposit notification",
+    "trc20 webhook"
+  ],
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts --clean",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "prepublishOnly": "npm run typecheck && npm run build && npm test"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.1",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.7"
+  },
+  "bugs": {
+    "url": "https://github.com/LuganBI/tronhooks-sdk/issues",
+    "email": "ops@tronhooks.com"
+  }
+}
