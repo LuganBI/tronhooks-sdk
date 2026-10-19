@@ -6,6 +6,8 @@
 
 export type Network = 'mainnet' | 'nile';
 export type Asset = 'USDT' | 'TRX';
+export type Direction = 'incoming' | 'outgoing' | 'both';
+export type Channel = 'webhook' | 'telegram';
 export type AssetFilter = 'USDT' | 'TRX' | 'ALL';
 export type DeliveryStatus = 'PENDING' | 'DELIVERED' | 'DEAD';
 
@@ -14,6 +16,8 @@ export interface TransferEvent {
   api_version: string;
   event_id: string;
   type: 'transfer.confirmed';
+  /** Transfer side matched by this watch; additive in API version 2026-08. */
+  direction?: 'incoming' | 'outgoing';
   network: Network;
   asset: Asset;
   /** TRC-20 contract address (base58), null for native TRX */
@@ -32,20 +36,25 @@ export interface TransferEvent {
   watch_id: string;
 }
 
-export interface Watch {
+interface WatchBase {
   id: string;
   address: string;
   asset_filter: AssetFilter;
-  webhook_url: string;
+  direction: Direction;
   status: string;
   created_at: string;
 }
 
-export interface CreatedWatch extends Watch {
-  /** webhook signing secret — returned ONCE at creation, store it now */
+export interface WebhookWatch extends WatchBase { channel: 'webhook'; webhook_url: string }
+export interface TelegramWatch extends WatchBase { channel: 'telegram'; webhook_url: null }
+export type Watch = WebhookWatch | TelegramWatch;
+export interface CreatedWebhookWatch extends WebhookWatch {
+  /** Returned ONCE at creation. Store locally, never in prompts or public URLs. */
   secret: string;
   note?: string;
 }
+export interface CreatedTelegramWatch extends TelegramWatch { note?: string; secret?: never }
+export type CreatedWatch = CreatedWebhookWatch | CreatedTelegramWatch;
 
 export interface EventListItem extends TransferEvent {
   delivery: {
@@ -58,5 +67,8 @@ export interface EventListItem extends TransferEvent {
 
 export interface EventPage {
   data: EventListItem[];
+  /** Legacy timestamp cursor; cannot distinguish equal timestamps. */
   next_before: string | null;
+  /** Stable opaque cursor (new servers); preferred for lossless pagination. */
+  next_cursor?: string | null;
 }

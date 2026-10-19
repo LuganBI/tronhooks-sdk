@@ -1,13 +1,13 @@
 {
   "name": "@tronhooks/sdk",
-  "version": "0.1.1",
-  "description": "TRON deposit webhooks (USDT/TRX) \u2014 watch addresses, receive signed webhooks, verify in one line. Client for tronhooks.com.",
+  "version": "0.2.0",
+  "description": "TRON deposit webhooks (USDT/TRX) — watch addresses, receive signed webhooks, verify in one line. Client for tronhooks.com.",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/LuganBI/tronhooks-sdk.git"
   },
-  "homepage": "https://tronhooks.com/docs/",
+  "homepage": "https://tronhooks.com/docs/ai/",
   "keywords": [
     "tron",
     "trc20",

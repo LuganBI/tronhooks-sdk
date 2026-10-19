@@ -56,7 +56,7 @@ describe('TronHooks client', () => {
         asset_filter: 'ALL',
         webhook_url: 'https://app.example/hook',
       });
-      return json({ id: 'w1', secret: 'whsec_1' });
+      return json({ id: 'w1', channel: 'webhook', secret: 'whsec_1' });
     });
     const th = new TronHooks(KEY, { fetchImpl: fetchImpl as typeof fetch });
     const w = await th.watches.create({
@@ -102,4 +102,80 @@ describe('TronHooks client', () => {
     expect(ids).toEqual(['e3', 'e2', 'e1']);
     expect(seenUrls[1]).toContain('before=2026-08-07');
   });
+});
+
+describe('0.2 channel and reconciliation contract', () => {
+  it('encodes Telegram and direction without a webhook URL or secret', async () => {
+    const fetchImpl = vi.fn(async (_url: unknown, init?: RequestInit) => {
+      expect(JSON.parse(String(init?.body))).toEqual({ address: 'Txyz', asset_filter: 'USDT', direction: 'outgoing', telegram: true });
+      expect(init?.redirect).toBe('error');
+      expect(init?.signal).toBeInstanceOf(AbortSignal);
+      return json({ id: 'w-tg', channel: 'telegram', webhook_url: null });
+    });
+    const result = await new TronHooks(KEY, { fetchImpl: fetchImpl as typeof fetch }).watches.create({ address: 'Txyz', assetFilter: 'USDT', direction: 'outgoing', telegram: true });
+    expect(result.channel).toBe('telegram');
+    expect(result.secret).toBeUndefined();
+  });
+  it('rejects both or neither target before any HTTP request', async () => {
+    const fetchImpl = vi.fn();
+    const th = new TronHooks(KEY, { fetchImpl });
+    for (const params of [{ address: 'T', assetFilter: 'USDT' }, { address: 'T', assetFilter: 'USDT', telegram: true, webhookUrl: 'https://x.test/' }]) {
+      await expect(th.watches.create(params as never)).rejects.toThrow('exactly one target');
+    }
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+  it.each([402, 409, 429, 503])('reports %i without retrying a create', async status => {
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ error: 'not accepted' }), { status, headers: { 'retry-after': '60' } }));
+    const th = new TronHooks(KEY, { fetchImpl });
+    await expect(th.watches.create({ address: 'Txyz', assetFilter: 'TRX', telegram: true })).rejects.toMatchObject({ status, retryAfter: '60' });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+  it('preserves an uncertain network failure without retrying', async () => {
+    const fetchImpl = vi.fn(async () => { throw new TypeError('network failed'); });
+    await expect(new TronHooks(KEY, { fetchImpl }).watches.create({ address: 'Txyz', assetFilter: 'TRX', telegram: true })).rejects.toThrow('network failed');
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+  it('stops a cyclic pagination response', async () => {
+    const fetchImpl = vi.fn(async () => json({ data: [], next_before: '2026-10-01T00:00:00Z' }));
+    const collect = async () => { for await (const _event of new TronHooks(KEY, { fetchImpl }).events.iterate()) { /* empty fixture */ } };
+    await expect(collect()).rejects.toThrow('cursor repeated');
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+  it('rejects credential-bearing base URLs and invalid timeouts', () => {
+    expect(() => new TronHooks(KEY, { baseUrl: 'https://user:secret@example.com' })).toThrow('baseUrl');
+    expect(() => new TronHooks(KEY, { baseUrl: 'https://example.com?token=secret' })).toThrow('baseUrl');
+    expect(() => new TronHooks(KEY, { timeoutMs: 0 })).toThrow('timeoutMs');
+  });
+});
+
+
+describe('HTTP response protocol failures', () => {
+  it.each(['', 'not json', '[]', 'null', '"ok"', '{}', '{"id":"w1"}'])('rejects malformed successful JSON: %s', async body => {
+    const fetchImpl = vi.fn(async () => new Response(body, { status: 201 }));
+    await expect(new TronHooks(KEY, { fetchImpl }).watches.create({ address: 'Txyz', assetFilter: 'USDT', telegram: true })).rejects.toThrow('outcome may be uncertain');
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('additive stable pagination', () => {
+  it('prefers next_cursor over legacy date-time next_before without parsing the opaque value', async () => {
+    const urls: string[] = [];
+    const fetchImpl = vi.fn(async url => {
+      urls.push(String(url));
+      return json(urls.length === 1 ? { data: [{ event_id: 'tie-b' }], next_before: '2026-10-19T00:00:00.000Z', next_cursor: 'v1.opaque_value' } : { data: [{ event_id: 'tie-a' }], next_before: null, next_cursor: null });
+    });
+    const ids: string[] = [];
+    for await (const event of new TronHooks(KEY, { fetchImpl }).events.iterate()) ids.push(event.event_id);
+    expect(ids).toEqual(['tie-b', 'tie-a']);
+    expect(urls[1]).toContain('cursor=v1.opaque_value'); expect(urls[1]).not.toContain('before=');
+  });
+});
+
+
+it('an unexpected create 204 is an uncertain protocol failure, while delete 204 remains valid', async () => {
+  const fetchImpl = vi.fn(async () => new Response(null, { status: 204 }));
+  const th = new TronHooks(KEY, { fetchImpl });
+  await expect(th.watches.create({ address: 'Txyz', assetFilter: 'USDT', telegram: true })).rejects.toThrow('outcome may be uncertain');
+  expect(fetchImpl).toHaveBeenCalledTimes(1);
+  await expect(th.watches.delete('w1')).resolves.toBeUndefined();
 });

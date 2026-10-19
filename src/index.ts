@@ -1,10 +1,16 @@
 export { TronHooks, TronHooksError } from './client.js';
-export type { CreateWatchParams, ListEventsParams, TronHooksOptions } from './client.js';
+export type { CreateWatchParams, CreateWebhookParams, CreateTelegramParams, ListEventsParams, TronHooksOptions } from './client.js';
 export { constructEvent, verifySignature, SignatureVerificationError } from './webhooks.js';
 export type {
   Asset,
   AssetFilter,
   CreatedWatch,
+  CreatedWebhookWatch,
+  CreatedTelegramWatch,
+  WebhookWatch,
+  TelegramWatch,
+  Direction,
+  Channel,
   DeliveryStatus,
   EventListItem,
   EventPage,
